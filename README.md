@@ -233,7 +233,7 @@ gw7_boot-<BakaSU commit前12位>-unsign-<run id>.zip
 
 - 签名构建的主工件包含 `boot.img`、`boot.img.lz4` 和 `boot-unsign.img`；附带的未签名版有独立的 `boot-unsign-manifest.json` 校验报告。另有一个按 UTC 时间命名的单独工件 `AP_YYYYMMDD_HHMMSS.tar.md5`，原始 tar 内只有 `boot.img.lz4`，文件尾部附加 Samsung 风格的原始大小和 MD5 信息。
 - 勾选「不签名」时只提供 `boot-unsign.img`，不会生成 LZ4 或 tar。
-- LZ4 内容使用 1 MiB 独立块、内容校验和及原始大小字段，生成后会解压核对；主工件中的镜像和 LZ4 均列入 `SHA256SUMS`，时间戳命名的 `.tar.md5` 工件的原始 tar MD5 记录在 `BUILD.txt`。
+- LZ4 内容使用 1 MiB 独立块、内容校验和及原始大小字段，生成后会解压核对；主工件中的镜像和 LZ4 均列入 `SHA256SUMS`。`.tar.md5` 的 MD5 覆盖最后一行校验值之前的全部字节，包括 tar 和三行 RBS 构建信息；`original_tar_file_size` 仍只记录 tar 大小。文件生成后会重新读取并独立验算，通过后才上传，校验值记录在 `BUILD.txt`。
 - `Image`、`kernel.config`、`Module.symvers`、`System.map`：编译结果及核查材料。
 - `bakasu.json`、`prepare.json`、`compile.json`、`module-trust.json`、`boot-manifest.json`、`config-check.json`、`source-manifest.json`：来源、完整 BakaSU commit、工具链、配置、原厂模块信任和镜像校验记录。
 - `SHA256SUMS`、`BUILD.txt`：文件哈希与摘要。

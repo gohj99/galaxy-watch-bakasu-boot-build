@@ -12,7 +12,7 @@ from unittest.mock import patch
 import lz4.frame
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-from collect_results import collect
+from collect_results import collect, verify_ap_tar_md5
 from common import sha256
 
 
@@ -38,7 +38,7 @@ class ResultsTests(unittest.TestCase):
             self.assertNotIn('.lz4', (output / 'SHA256SUMS').read_text())
             self.assertFalse((output / 'boot-unsign.img.lz4').exists())
             self.assertFalse((output / 'boot.img.lz4.tar').exists())
-            self.assertFalse((root / 'AP.tar.md5').exists())
+            self.assertFalse((root / 'AP_20261127_123456.tar.md5').exists())
             for path in output.rglob('*'):
                 if path.is_file():
                     self.assertNotIn(b'PRIVATE', path.read_bytes())
@@ -122,17 +122,47 @@ class ResultsTests(unittest.TestCase):
                         tar_compressed = archive.extractfile('boot.img.lz4').read()
                     self.assertEqual(tar_compressed, compressed)
                     self.assertNotIn('AP.tar', checksums)
-                    self.assertIn(f'{ap_tar_md5.name}` raw AP.tar MD5: `{hashlib.md5(raw_tar).hexdigest()}`',
-                                  (output / 'BUILD.txt').read_text())
                     expected_tar_name = ap_tar_md5.name.removesuffix('.md5')
                     match = re.search(r'original_tar_file_size:(\d+)\n([0-9a-f]{32})  (.+\.tar)\n$', footer)
                     self.assertIsNotNone(match)
                     self.assertEqual(int(match.group(1)), len(raw_tar))
-                    self.assertEqual(match.group(2), hashlib.md5(raw_tar).hexdigest())
                     self.assertEqual(match.group(3), expected_tar_name)
+                    # NetOdin hashes all bytes up to the final MD5 line, including
+                    # the three metadata lines following the tar payload.
+                    covered, checksum_line, end = raw.rsplit(b'\n', 2)
+                    self.assertEqual(end, b'')
+                    odin_md5 = hashlib.md5(covered + b'\n').hexdigest()
+                    self.assertEqual(checksum_line[:32].decode('ascii'), odin_md5)
+                    self.assertNotEqual(odin_md5, hashlib.md5(raw_tar).hexdigest())
+                    self.assertIn(f'{ap_tar_md5.name}` Odin MD5: `{odin_md5}` (verified)',
+                                  (output / 'BUILD.txt').read_text())
                 else:
                     self.assertFalse((output / 'boot.img.lz4').exists())
                     self.assertFalse(ap_tar_md5.exists())
+
+    def test_odin_verifier_rejects_tar_only_checksum_and_corrupted_metadata(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'AP_20261127_085537.tar.md5'
+            # Construct the checksum input independently of the package writer.
+            tar = b'fixture tar payload'.ljust(10240, b'\0')
+            metadata = (b'Show the build information\nRBS BUILD_ID:45966889425\n'
+                        b'original_tar_file_size:10240\n')
+            covered = tar + metadata
+            suffix = b'  AP_20261127_085537.tar\n'
+            checksum = hashlib.md5(covered).hexdigest().encode('ascii')
+            path.write_bytes(covered + checksum + suffix)
+            self.assertEqual(verify_ap_tar_md5(path), checksum.decode('ascii'))
+
+            invalid = {
+                'legacy tar-only checksum': covered + hashlib.md5(tar).hexdigest().encode('ascii') + suffix,
+                'modified tar': b'X' + covered[1:] + checksum + suffix,
+                'modified metadata': covered.replace(b'45966889425', b'45966889426') + checksum + suffix,
+            }
+            for name, data in invalid.items():
+                with self.subTest(name=name):
+                    path.write_bytes(data)
+                    with self.assertRaisesRegex(ValueError, 'Odin MD5 mismatch'):
+                        verify_ap_tar_md5(path)
 
 
 if __name__ == '__main__':

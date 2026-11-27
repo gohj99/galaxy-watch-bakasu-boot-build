@@ -7,6 +7,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import shutil
 import tarfile
 from pathlib import Path
@@ -27,8 +28,33 @@ def compressed_boot(source: Path) -> bytes:
     return compressed
 
 
+def verify_ap_tar_md5(path: Path) -> str:
+    """Verify the Odin checksum over every byte preceding the final MD5 line."""
+    tail_start = max(0, path.stat().st_size - 4096)
+    with path.open('rb') as stream:
+        stream.seek(tail_start)
+        tail = stream.read()
+    checksum = re.search(rb'(?m)^([0-9a-f]{32})  ([^\r\n]+\.tar)\n\Z', tail)
+    if checksum is None:
+        raise ValueError(f'{path.name}: missing final MD5 line')
+    if checksum[2] != path.name.removesuffix('.md5').encode('ascii'):
+        raise ValueError(f'{path.name}: MD5 filename does not match the archive')
+    digest = hashlib.md5()
+    with path.open('rb') as stream:
+        remaining = tail_start + checksum.start()
+        while remaining:
+            block = stream.read(min(1024 * 1024, remaining))
+            if not block:
+                raise ValueError(f'{path.name}: truncated MD5 input')
+            digest.update(block)
+            remaining -= len(block)
+    if digest.hexdigest() != checksum[1].decode('ascii'):
+        raise ValueError(f'{path.name}: Odin MD5 mismatch')
+    return digest.hexdigest()
+
+
 def write_ap_tar_md5(compressed: bytes, destination: Path) -> str:
-    """Write Samsung-style AP.tar.md5 and return the raw AP.tar MD5."""
+    """Write Samsung-style AP.tar.md5, then independently verify its Odin MD5."""
     entry = tarfile.TarInfo('boot.img.lz4')
     entry.size = len(compressed)
     entry.mode = 0o644
@@ -38,20 +64,22 @@ def write_ap_tar_md5(compressed: bytes, destination: Path) -> str:
     with tarfile.open(destination, mode='w') as archive:
         archive.addfile(entry, io.BytesIO(compressed))
     tar_size = destination.stat().st_size
+    build_id = os.environ.get('GITHUB_RUN_ID', 'local')
+    metadata = (f'Show the build information\n'
+                f'RBS BUILD_ID:{build_id}\n'
+                f'original_tar_file_size:{tar_size}\n').encode('ascii')
+    with destination.open('ab') as stream:
+        stream.write(metadata)
+    # Odin includes the RBS metadata in its checksum; the declared size above
+    # still describes only the tar, without metadata or the final MD5 line.
     digest = hashlib.md5()
     with destination.open('rb') as stream:
         for block in iter(lambda: stream.read(1024 * 1024), b''):
             digest.update(block)
-    raw_md5 = digest.hexdigest()
-    build_id = os.environ.get('GITHUB_RUN_ID', 'local')
     tar_name = destination.name.removesuffix('.md5')
-    footer = (f'Show the build information\n'
-              f'RBS BUILD_ID:{build_id}\n'
-              f'original_tar_file_size:{tar_size}\n'
-              f'{raw_md5}  {tar_name}\n').encode()
     with destination.open('ab') as stream:
-        stream.write(footer)
-    return raw_md5
+        stream.write(f'{digest.hexdigest()}  {tar_name}\n'.encode('ascii'))
+    return verify_ap_tar_md5(destination)
 
 
 def verified_boot_report(source: Path, manifest: Path) -> dict | None:
@@ -132,8 +160,8 @@ def collect(work: Path, destination: Path, summary: Path | None = None,
             text.append(f'- `{lz4_path.name}` SHA-256: `{sha256(lz4_path)}`')
             if ap_tar_md5_output is not None:
                 ap_tar_md5_output.parent.mkdir(parents=True, exist_ok=True)
-                raw_md5 = write_ap_tar_md5(compressed, ap_tar_md5_output)
-                text.append(f'- Separate artifact `{ap_tar_md5_output.name}` raw AP.tar MD5: `{raw_md5}`')
+                odin_md5 = write_ap_tar_md5(compressed, ap_tar_md5_output)
+                text.append(f'- Separate artifact `{ap_tar_md5_output.name}` Odin MD5: `{odin_md5}` (verified)')
     if not images:
         text.append('- boot SHA-256: `not produced`')
     text.append('')
