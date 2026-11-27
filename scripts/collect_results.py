@@ -26,15 +26,9 @@ def compressed_boot(source: Path) -> bytes:
     return compressed
 
 
-def compress_boot(source: Path, destination: Path) -> None:
-    """Write a standalone LZ4 stream for callers that need one temporarily."""
-    destination.write_bytes(compressed_boot(source))
-
-
-def archive_boot_lz4(source: Path, destination: Path) -> None:
-    """Put the verified LZ4 stream in a tar archive without publishing the stream itself."""
-    compressed = compressed_boot(source)
-    entry = tarfile.TarInfo(f'{source.name}.lz4')
+def write_ap_tar(compressed: bytes, destination: Path) -> None:
+    """Write a tar archive containing only the supplied boot.img.lz4 stream."""
+    entry = tarfile.TarInfo('boot.img.lz4')
     entry.size = len(compressed)
     entry.mode = 0o644
     entry.mtime = 0
@@ -52,7 +46,8 @@ def verified_boot_report(source: Path, manifest: Path) -> dict | None:
     return None
 
 
-def collect(work: Path, destination: Path, summary: Path | None = None):
+def collect(work: Path, destination: Path, summary: Path | None = None,
+            ap_tar_output: Path | None = None):
     destination.mkdir(parents=True, exist_ok=True)
     reports = ['source-manifest.json', 'bakasu.json', 'prepare.json', 'config-check.json',
                'compile.json', 'module-trust.json', 'abi-symbols-gw8.json']
@@ -90,12 +85,14 @@ def collect(work: Path, destination: Path, summary: Path | None = None):
                     raise ValueError('boot-unsign.img verification report marks it as signed')
                 images[companion.name] = (companion, companion_manifest_name, report)
 
-    # Remove images and reports left by a previous collection in this directory.
+    # Remove compression outputs left by a previous collection in this directory.
     for name in ('boot.img', 'boot-unsign.img'):
         if name not in images:
             (destination / name).unlink(missing_ok=True)
         (destination / f'{name}.lz4').unlink(missing_ok=True)
         (destination / f'{name}.lz4.tar').unlink(missing_ok=True)
+    if ap_tar_output is not None:
+        ap_tar_output.unlink(missing_ok=True)
     used_manifests = {name for _, name, _ in images.values()}
     for name in (manifest_name, companion_manifest_name):
         if name not in used_manifests:
@@ -112,9 +109,14 @@ def collect(work: Path, destination: Path, summary: Path | None = None):
         write_json(destination / report_name, report)
         text.append(f'- `{name}` SHA-256: `{sha256(published_boot)}`')
         if mode == 'signed' and name == 'boot.img':
-            archive = destination / 'boot.img.lz4.tar'
-            archive_boot_lz4(published_boot, archive)
-            text.append(f'- `{archive.name}` SHA-256: `{sha256(archive)}`')
+            compressed = compressed_boot(published_boot)
+            lz4_path = destination / 'boot.img.lz4'
+            lz4_path.write_bytes(compressed)
+            text.append(f'- `{lz4_path.name}` SHA-256: `{sha256(lz4_path)}`')
+            if ap_tar_output is not None:
+                ap_tar_output.parent.mkdir(parents=True, exist_ok=True)
+                write_ap_tar(compressed, ap_tar_output)
+                text.append(f'- Separate artifact `{ap_tar_output.name}` SHA-256: `{sha256(ap_tar_output)}`')
     if not images:
         text.append('- boot SHA-256: `not produced`')
     text.append('')
@@ -133,11 +135,15 @@ def collect(work: Path, destination: Path, summary: Path | None = None):
         suffix = {'signed': '', 'unsigned': '-unsign', 'incomplete': '-incomplete'}[mode]
         with open(os.environ['GITHUB_OUTPUT'], 'a') as stream:
             stream.write(f'artifact_name=boot-{commit}{suffix}-{os.environ.get("GITHUB_RUN_ID", "local")}\n')
+            stream.write(f'ap_tar={str(mode == "signed" and ap_tar_output is not None and ap_tar_output.is_file()).lower()}\n')
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--work', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--ap-tar-output', type=Path)
     args = parser.parse_args()
-    collect(args.work, args.output, Path(os.environ['GITHUB_STEP_SUMMARY']) if os.environ.get('GITHUB_STEP_SUMMARY') else None)
+    collect(args.work, args.output,
+            Path(os.environ['GITHUB_STEP_SUMMARY']) if os.environ.get('GITHUB_STEP_SUMMARY') else None,
+            args.ap_tar_output)

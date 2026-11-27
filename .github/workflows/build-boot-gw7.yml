@@ -20,7 +20,7 @@ on:
         required: false
         type: string
       unsigned:
-        description: '不签名（不推荐）：仅输出 boot-unsign 镜像，保留三星尾部/模块证书，补零至原大小，不生成 AVB、LZ4 或 tar。未勾选时同时输出签名版和未签名版，并将签名 boot 的 LZ4 放入 boot.img.lz4.tar；须在 Settings → Secrets and variables → Actions 的 Secrets 中添加 AVB_PRIVATE_KEY_B64，内容为 RSA-4096 私钥 PEM 的 Base64，缺失或无效会导致失败。'
+        description: '不签名（不推荐）：仅输出 boot-unsign 镜像，保留三星尾部/模块证书，补零至原大小，不生成 AVB、LZ4 或 tar。未勾选时同时输出签名版和未签名版，并额外生成 boot.img.lz4 与单独的 AP.tar 工件；须在 Settings → Secrets and variables → Actions 的 Secrets 中添加 AVB_PRIVATE_KEY_B64，内容为 RSA-4096 私钥 PEM 的 Base64，缺失或无效会导致失败。'
         required: true
         default: false
         type: boolean
@@ -147,7 +147,7 @@ jobs:
       - name: Collect boot results / hashes
         id: results
         if: ${{ always() && !cancelled() }}
-        run: python3 scripts/collect_results.py --work "$WORK" --output "$DIST"
+        run: python3 scripts/collect_results.py --work "$WORK" --output "$DIST" --ap-tar-output "$WORK/AP.tar"
 
       - name: Upload boot and public build reports
         if: ${{ always() && !cancelled() }}
@@ -157,3 +157,12 @@ jobs:
           path: dist/
           if-no-files-found: warn
           compression-level: 6
+
+      - name: Upload separate AP.tar artifact
+        if: ${{ always() && !cancelled() && steps.results.outputs.ap_tar == 'true' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: AP.tar
+          path: ${{ env.WORK }}/AP.tar
+          if-no-files-found: error
+          compression-level: 0

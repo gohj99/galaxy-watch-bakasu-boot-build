@@ -26,14 +26,16 @@ class ResultsTests(unittest.TestCase):
             (work / 'boot-manifest.json').write_text(json.dumps({'verification': {'signed': False}}))
             github_output = root / 'github-output.txt'
             with patch.dict('os.environ', {'GITHUB_OUTPUT': str(github_output), 'GITHUB_RUN_ID': '123'}):
-                collect(work, output, root / 'summary.md')
-            self.assertEqual(github_output.read_text(), 'artifact_name=boot-aaaaaaaaaaaa-unsign-123\n')
+                collect(work, output, root / 'summary.md', root / 'AP.tar')
+            self.assertEqual(github_output.read_text(),
+                             'artifact_name=boot-aaaaaaaaaaaa-unsign-123\nap_tar=false\n')
             self.assertIn('unsigned', (output / 'BUILD.txt').read_text())
             self.assertIn('BUILD.txt', (output / 'SHA256SUMS').read_text())
             self.assertIn('boot-unsign.img', (output / 'SHA256SUMS').read_text())
             self.assertNotIn('.lz4', (output / 'SHA256SUMS').read_text())
             self.assertFalse((output / 'boot-unsign.img.lz4').exists())
             self.assertFalse((output / 'boot.img.lz4.tar').exists())
+            self.assertFalse((root / 'AP.tar').exists())
             for path in output.rglob('*'):
                 if path.is_file():
                     self.assertNotIn(b'PRIVATE', path.read_bytes())
@@ -48,9 +50,11 @@ class ResultsTests(unittest.TestCase):
             (output / 'boot.img').write_bytes(b'previous build')
             (output / 'boot.img.lz4').write_bytes(b'previous build')
             (output / 'boot.img.lz4.tar').write_bytes(b'previous build')
-            collect(work, output)
+            (root / 'AP.tar').write_bytes(b'previous build')
+            collect(work, output, ap_tar_output=root / 'AP.tar')
             self.assertIn('incomplete', (output / 'BUILD.txt').read_text())
             self.assertFalse(list(output.glob('*.img*')))
+            self.assertFalse((root / 'AP.tar').exists())
 
     def test_lz4_and_checksums_cover_each_published_boot(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -71,12 +75,13 @@ class ResultsTests(unittest.TestCase):
                 primary = 'boot.img' if signed else 'boot-unsign.img'
                 (work / 'boot.img').write_bytes(expected[primary])
                 (work / 'boot-manifest.json').write_text(json.dumps({'verification': {'signed': signed}}))
-                collect(work, output)
+                ap_tar = root / 'AP.tar'
+                collect(work, output, ap_tar_output=ap_tar)
                 published = {p.name for p in output.iterdir()
-                             if p.name.endswith('.img') or p.name.endswith('.img.lz4.tar')}
+                             if p.name.endswith('.img') or p.name.endswith('.img.lz4')}
                 expected_published = set(expected)
                 if signed:
-                    expected_published.add('boot.img.lz4.tar')
+                    expected_published.add('boot.img.lz4')
                 self.assertEqual(published, expected_published)
                 report = json.loads((output / 'boot-manifest.json').read_text())
                 self.assertEqual(report['output'], primary)
@@ -94,19 +99,25 @@ class ResultsTests(unittest.TestCase):
                     self.assertEqual((output / name).read_bytes(), final)
                     self.assertEqual(checksums[name], sha256(output / name))
                 if signed:
-                    archive_path = output / 'boot.img.lz4.tar'
-                    with tarfile.open(archive_path) as archive:
-                        self.assertEqual(archive.getnames(), ['boot.img.lz4'])
-                        compressed = archive.extractfile('boot.img.lz4').read()
+                    lz4_path = output / 'boot.img.lz4'
+                    compressed = lz4_path.read_bytes()
                     self.assertEqual(lz4.frame.decompress(compressed), expected['boot.img'])
                     info = lz4.frame.get_frame_info(compressed)
                     self.assertEqual(info['content_size'], len(expected['boot.img']))
                     self.assertTrue(info['content_checksum'])
                     self.assertFalse(info['block_linked'])
                     self.assertFalse(info['block_checksum'])
-                    self.assertEqual(checksums['boot.img.lz4.tar'], sha256(archive_path))
+                    self.assertEqual(checksums['boot.img.lz4'], sha256(lz4_path))
+                    with tarfile.open(ap_tar) as archive:
+                        self.assertEqual(archive.getnames(), ['boot.img.lz4'])
+                        tar_compressed = archive.extractfile('boot.img.lz4').read()
+                    self.assertEqual(tar_compressed, compressed)
+                    self.assertNotIn('AP.tar', checksums)
+                    self.assertIn(f'AP.tar` SHA-256: `{sha256(ap_tar)}`',
+                                  (output / 'BUILD.txt').read_text())
                 else:
-                    self.assertFalse((output / 'boot.img.lz4.tar').exists())
+                    self.assertFalse((output / 'boot.img.lz4').exists())
+                    self.assertFalse(ap_tar.exists())
 
 
 if __name__ == '__main__':
