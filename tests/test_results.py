@@ -1,4 +1,7 @@
+import io
 import json
+import hashlib
+import re
 import sys
 import tarfile
 import tempfile
@@ -26,16 +29,16 @@ class ResultsTests(unittest.TestCase):
             (work / 'boot-manifest.json').write_text(json.dumps({'verification': {'signed': False}}))
             github_output = root / 'github-output.txt'
             with patch.dict('os.environ', {'GITHUB_OUTPUT': str(github_output), 'GITHUB_RUN_ID': '123'}):
-                collect(work, output, root / 'summary.md', root / 'AP.tar')
+                collect(work, output, root / 'summary.md', root / 'AP.tar.md5')
             self.assertEqual(github_output.read_text(),
-                             'artifact_name=boot-aaaaaaaaaaaa-unsign-123\nap_tar=false\n')
+                             'artifact_name=boot-aaaaaaaaaaaa-unsign-123\nap_tar_md5=false\n')
             self.assertIn('unsigned', (output / 'BUILD.txt').read_text())
             self.assertIn('BUILD.txt', (output / 'SHA256SUMS').read_text())
             self.assertIn('boot-unsign.img', (output / 'SHA256SUMS').read_text())
             self.assertNotIn('.lz4', (output / 'SHA256SUMS').read_text())
             self.assertFalse((output / 'boot-unsign.img.lz4').exists())
             self.assertFalse((output / 'boot.img.lz4.tar').exists())
-            self.assertFalse((root / 'AP.tar').exists())
+            self.assertFalse((root / 'AP.tar.md5').exists())
             for path in output.rglob('*'):
                 if path.is_file():
                     self.assertNotIn(b'PRIVATE', path.read_bytes())
@@ -50,10 +53,12 @@ class ResultsTests(unittest.TestCase):
             (output / 'boot.img').write_bytes(b'previous build')
             (output / 'boot.img.lz4').write_bytes(b'previous build')
             (output / 'boot.img.lz4.tar').write_bytes(b'previous build')
+            (root / 'AP.tar.md5').write_bytes(b'previous build')
             (root / 'AP.tar').write_bytes(b'previous build')
-            collect(work, output, ap_tar_output=root / 'AP.tar')
+            collect(work, output, ap_tar_md5_output=root / 'AP.tar.md5')
             self.assertIn('incomplete', (output / 'BUILD.txt').read_text())
             self.assertFalse(list(output.glob('*.img*')))
+            self.assertFalse((root / 'AP.tar.md5').exists())
             self.assertFalse((root / 'AP.tar').exists())
 
     def test_lz4_and_checksums_cover_each_published_boot(self):
@@ -75,8 +80,8 @@ class ResultsTests(unittest.TestCase):
                 primary = 'boot.img' if signed else 'boot-unsign.img'
                 (work / 'boot.img').write_bytes(expected[primary])
                 (work / 'boot-manifest.json').write_text(json.dumps({'verification': {'signed': signed}}))
-                ap_tar = root / 'AP.tar'
-                collect(work, output, ap_tar_output=ap_tar)
+                ap_tar_md5 = root / 'AP.tar.md5'
+                collect(work, output, ap_tar_md5_output=ap_tar_md5)
                 published = {p.name for p in output.iterdir()
                              if p.name.endswith('.img') or p.name.endswith('.img.lz4')}
                 expected_published = set(expected)
@@ -108,16 +113,24 @@ class ResultsTests(unittest.TestCase):
                     self.assertFalse(info['block_linked'])
                     self.assertFalse(info['block_checksum'])
                     self.assertEqual(checksums['boot.img.lz4'], sha256(lz4_path))
-                    with tarfile.open(ap_tar) as archive:
+                    raw = ap_tar_md5.read_bytes()
+                    footer_at = raw.index(b'Show the build information\n')
+                    raw_tar = raw[:footer_at]
+                    footer = raw[footer_at:].decode()
+                    with tarfile.open(fileobj=io.BytesIO(raw_tar), mode='r:') as archive:
                         self.assertEqual(archive.getnames(), ['boot.img.lz4'])
                         tar_compressed = archive.extractfile('boot.img.lz4').read()
                     self.assertEqual(tar_compressed, compressed)
                     self.assertNotIn('AP.tar', checksums)
-                    self.assertIn(f'AP.tar` SHA-256: `{sha256(ap_tar)}`',
+                    self.assertIn(f'AP.tar.md5` raw AP.tar MD5: `{hashlib.md5(raw_tar).hexdigest()}`',
                                   (output / 'BUILD.txt').read_text())
+                    match = re.search(r'original_tar_file_size:(\d+)\n([0-9a-f]{32})  AP\.tar\n$', footer)
+                    self.assertIsNotNone(match)
+                    self.assertEqual(int(match.group(1)), len(raw_tar))
+                    self.assertEqual(match.group(2), hashlib.md5(raw_tar).hexdigest())
                 else:
                     self.assertFalse((output / 'boot.img.lz4').exists())
-                    self.assertFalse(ap_tar.exists())
+                    self.assertFalse(ap_tar_md5.exists())
 
 
 if __name__ == '__main__':

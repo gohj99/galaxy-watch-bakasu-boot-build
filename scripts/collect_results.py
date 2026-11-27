@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import io
 import json
 import os
@@ -26,8 +27,8 @@ def compressed_boot(source: Path) -> bytes:
     return compressed
 
 
-def write_ap_tar(compressed: bytes, destination: Path) -> None:
-    """Write a tar archive containing only the supplied boot.img.lz4 stream."""
+def write_ap_tar_md5(compressed: bytes, destination: Path) -> str:
+    """Write Samsung-style AP.tar.md5 and return the raw AP.tar MD5."""
     entry = tarfile.TarInfo('boot.img.lz4')
     entry.size = len(compressed)
     entry.mode = 0o644
@@ -36,6 +37,20 @@ def write_ap_tar(compressed: bytes, destination: Path) -> None:
     entry.uname = entry.gname = ''
     with tarfile.open(destination, mode='w') as archive:
         archive.addfile(entry, io.BytesIO(compressed))
+    tar_size = destination.stat().st_size
+    digest = hashlib.md5()
+    with destination.open('rb') as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b''):
+            digest.update(block)
+    raw_md5 = digest.hexdigest()
+    build_id = os.environ.get('GITHUB_RUN_ID', 'local')
+    footer = (f'Show the build information\n'
+              f'RBS BUILD_ID:{build_id}\n'
+              f'original_tar_file_size:{tar_size}\n'
+              f'{raw_md5}  AP.tar\n').encode()
+    with destination.open('ab') as stream:
+        stream.write(footer)
+    return raw_md5
 
 
 def verified_boot_report(source: Path, manifest: Path) -> dict | None:
@@ -47,7 +62,7 @@ def verified_boot_report(source: Path, manifest: Path) -> dict | None:
 
 
 def collect(work: Path, destination: Path, summary: Path | None = None,
-            ap_tar_output: Path | None = None):
+            ap_tar_md5_output: Path | None = None):
     destination.mkdir(parents=True, exist_ok=True)
     reports = ['source-manifest.json', 'bakasu.json', 'prepare.json', 'config-check.json',
                'compile.json', 'module-trust.json', 'abi-symbols-gw8.json']
@@ -91,8 +106,10 @@ def collect(work: Path, destination: Path, summary: Path | None = None,
             (destination / name).unlink(missing_ok=True)
         (destination / f'{name}.lz4').unlink(missing_ok=True)
         (destination / f'{name}.lz4.tar').unlink(missing_ok=True)
-    if ap_tar_output is not None:
-        ap_tar_output.unlink(missing_ok=True)
+    if ap_tar_md5_output is not None:
+        ap_tar_md5_output.unlink(missing_ok=True)
+        if ap_tar_md5_output.name == 'AP.tar.md5':
+            ap_tar_md5_output.with_name('AP.tar').unlink(missing_ok=True)
     used_manifests = {name for _, name, _ in images.values()}
     for name in (manifest_name, companion_manifest_name):
         if name not in used_manifests:
@@ -113,10 +130,10 @@ def collect(work: Path, destination: Path, summary: Path | None = None,
             lz4_path = destination / 'boot.img.lz4'
             lz4_path.write_bytes(compressed)
             text.append(f'- `{lz4_path.name}` SHA-256: `{sha256(lz4_path)}`')
-            if ap_tar_output is not None:
-                ap_tar_output.parent.mkdir(parents=True, exist_ok=True)
-                write_ap_tar(compressed, ap_tar_output)
-                text.append(f'- Separate artifact `{ap_tar_output.name}` SHA-256: `{sha256(ap_tar_output)}`')
+            if ap_tar_md5_output is not None:
+                ap_tar_md5_output.parent.mkdir(parents=True, exist_ok=True)
+                raw_md5 = write_ap_tar_md5(compressed, ap_tar_md5_output)
+                text.append(f'- Separate artifact `{ap_tar_md5_output.name}` raw AP.tar MD5: `{raw_md5}`')
     if not images:
         text.append('- boot SHA-256: `not produced`')
     text.append('')
@@ -135,15 +152,15 @@ def collect(work: Path, destination: Path, summary: Path | None = None,
         suffix = {'signed': '', 'unsigned': '-unsign', 'incomplete': '-incomplete'}[mode]
         with open(os.environ['GITHUB_OUTPUT'], 'a') as stream:
             stream.write(f'artifact_name=boot-{commit}{suffix}-{os.environ.get("GITHUB_RUN_ID", "local")}\n')
-            stream.write(f'ap_tar={str(mode == "signed" and ap_tar_output is not None and ap_tar_output.is_file()).lower()}\n')
+            stream.write(f'ap_tar_md5={str(mode == "signed" and ap_tar_md5_output is not None and ap_tar_md5_output.is_file()).lower()}\n')
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--work', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--ap-tar-output', type=Path)
+    parser.add_argument('--ap-tar-md5-output', type=Path)
     args = parser.parse_args()
     collect(args.work, args.output,
             Path(os.environ['GITHUB_STEP_SUMMARY']) if os.environ.get('GITHUB_STEP_SUMMARY') else None,
-            args.ap_tar_output)
+            args.ap_tar_md5_output)
