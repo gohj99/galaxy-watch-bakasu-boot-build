@@ -33,7 +33,7 @@ jobs:
 
       - name: Commit changed index
         run: |
-          if git diff --quiet -- data/archive-source-index.json; then
+          if [[ -z "$(git status --porcelain -- data/archive-source-index.json)" ]]; then
             echo 'Archive.org index is unchanged.'
             exit 0
           fi
