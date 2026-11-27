@@ -44,10 +44,11 @@ def write_ap_tar_md5(compressed: bytes, destination: Path) -> str:
             digest.update(block)
     raw_md5 = digest.hexdigest()
     build_id = os.environ.get('GITHUB_RUN_ID', 'local')
+    tar_name = destination.name.removesuffix('.md5')
     footer = (f'Show the build information\n'
               f'RBS BUILD_ID:{build_id}\n'
               f'original_tar_file_size:{tar_size}\n'
-              f'{raw_md5}  AP.tar\n').encode()
+              f'{raw_md5}  {tar_name}\n').encode()
     with destination.open('ab') as stream:
         stream.write(footer)
     return raw_md5
@@ -108,8 +109,7 @@ def collect(work: Path, destination: Path, summary: Path | None = None,
         (destination / f'{name}.lz4.tar').unlink(missing_ok=True)
     if ap_tar_md5_output is not None:
         ap_tar_md5_output.unlink(missing_ok=True)
-        if ap_tar_md5_output.name == 'AP.tar.md5':
-            ap_tar_md5_output.with_name('AP.tar').unlink(missing_ok=True)
+        ap_tar_md5_output.with_name('AP.tar').unlink(missing_ok=True)
     used_manifests = {name for _, name, _ in images.values()}
     for name in (manifest_name, companion_manifest_name):
         if name not in used_manifests:
