@@ -12,7 +12,7 @@ on:
         required: true
         type: string
       archive_item:
-        description: '可选：Archive.org 归档编号或详情链接。留空自动查询并回退 Archive.org；填写例如 samsung-opensource-14120 可直接定位'
+        description: '可选：Archive.org 归档编号或详情链接。留空时优先使用仓库 data 索引，未命中再查询三星与 Archive.org；填写例如 samsung-opensource-14120 可直接定位'
         required: false
         type: string
 
@@ -29,7 +29,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Find matching archive and ordered source links
+      - name: Find source links (repository index first)
         id: links
         env:
           MODEL: ${{ inputs.model }}

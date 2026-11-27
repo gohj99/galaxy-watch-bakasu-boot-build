@@ -8,10 +8,11 @@ import unittest
 import urllib.error
 import zipfile
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-from find_source_links import (Client, SamsungSearchParser, discover_archive_items, discover_rows, main, normalize_item,
+from find_source_links import (Client, SamsungSearchParser, cached_archive_items, discover_archive_items, discover_rows, main, normalize_item,
                                read_dependencies, resolve, select_packages, summary,
                                validate_inputs)
 
@@ -51,6 +52,47 @@ class SourceLinkTests(unittest.TestCase):
         self.assertEqual(result['source_urls'], ';'.join(prefix + name for name in (BASE, DEVICE, UPDATE)))
         self.assertEqual([p['role'] for p in result['packages']], ['base', 'device', 'update'])
         self.assertEqual(result['base_versions'], ['L305USQU3BZB4'])
+
+    def test_cached_archive_index_is_used_before_online_discovery(self):
+        index = {'schema_version': 2, 'generated_at': '2026-01-01T00:00:00+00:00',
+                 'item_count': 1, 'items': [{'archive_item': 'samsung-opensource-14120',
+                 'models': ['SM-L315F'], 'firmware_versions': ['L315FXXS3BZF4'],
+                 'files': [{'name': UPDATE, 'size': 1}]}]}
+        with patch('find_source_links.read_index', return_value=index):
+            items, loaded = cached_archive_items('SM-L315F', 'L315FXXS3BZF4')
+        self.assertEqual(items, ['samsung-opensource-14120'])
+        self.assertEqual(loaded['generated_at'], index['generated_at'])
+
+    def test_cached_archive_index_invalidates_when_firmware_is_absent(self):
+        index = {'schema_version': 2, 'generated_at': '2026-01-01T00:00:00+00:00',
+                 'item_count': 1, 'items': [{'archive_item': 'samsung-opensource-14120',
+                 'models': ['SM-L315F'], 'firmware_versions': ['L315FXXS3BZF4'],
+                 'files': [{'name': UPDATE, 'size': 1}]}]}
+        with patch('find_source_links.read_index', return_value=index):
+            items, _ = cached_archive_items('SM-L315F', 'L315FXXS3BZZ9')
+        self.assertEqual(items, [])
+
+    def test_cached_index_resolves_without_online_archive_lookup(self):
+        files = [
+            {'name': name, 'source': 'original', 'size': '495466'}
+            for name in (BASE, DEVICE, UPDATE)
+        ]
+        index = {'schema_version': 2, 'generated_at': '2026-01-01T00:00:00+00:00',
+                 'item_count': 1, 'items': [{'archive_item': 'samsung-opensource-14120',
+                 'models': ['SM-L315F'], 'firmware_versions': ['L315FXXS3BZF4'], 'files': files}]}
+
+        class OfflineClient:
+            def read(self, *_args, **_kwargs):
+                raise AssertionError('cache hit should not query Samsung or Archive.org metadata')
+            def metadata(self, _item):
+                raise AssertionError('cache hit should not download Archive.org metadata')
+
+        report = {}
+        with patch('find_source_links.cached_archive_items', return_value=(['samsung-opensource-14120'], index)), \
+                patch('find_source_links.read_dependencies', side_effect=lambda _client, _item, entry: dependency(entry)):
+            result = resolve(OfflineClient(), 'SM-L315F', 'L315FXXS3BZF4', '', report)
+        self.assertEqual(result['archive_item'], 'samsung-opensource-14120')
+        self.assertEqual(report['discovery']['method'], 'local_archive_index')
 
     def test_previous_build_does_not_select_newer_patch(self):
         result = self.select('L315FXXS3BZE1')
@@ -250,6 +292,21 @@ class SourceLinkTests(unittest.TestCase):
                                    'docs': [{'identifier': 'samsung-opensource-14120'}]}}).encode()
         with self.assertRaisesRegex(ValueError, '条目列表不完整'):
             FakeClient().archive_items()
+
+    def test_collection_listing_is_paginated(self):
+        class FakeClient(Client):
+            def read(self, url):
+                page = int(parse_qs(urlsplit(url).query)['page'][0])
+                identifiers = ['samsung-opensource-', 'samsung-opensource-1', 'samsung-opensource-2',
+                               'samsung-opensource-3']
+                start = (page - 1) * 2
+                docs = [{'identifier': value} for value in identifiers[start:start + 2]]
+                return json.dumps({'response': {'numFound': 4, 'docs': docs}}).encode()
+
+        with patch('find_source_links.ARCHIVE_ITEM_PAGE_SIZE', 2):
+            self.assertEqual(FakeClient().archive_items(), ['samsung-opensource-3',
+                                                            'samsung-opensource-2',
+                                                            'samsung-opensource-1'])
 
     def test_small_overlay_zip_readme_and_hash_checked(self):
         buffer = io.BytesIO()

@@ -1,0 +1,44 @@
+name: Update Samsung source archive index
+
+on:
+  schedule:
+    - cron: '23 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-samsung-source-index
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: true
+
+      - name: Install Python
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends python3
+
+      - name: Refresh Archive.org file index
+        run: python3 scripts/update_archive_index.py
+
+      - name: Commit changed index
+        run: |
+          if git diff --quiet -- data/archive-source-index.json; then
+            echo 'Archive.org index is unchanged.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data/archive-source-index.json
+          git commit -m 'chore: update Samsung source archive index'
+          git push

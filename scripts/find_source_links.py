@@ -26,6 +26,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 
 from common import write_json
+from archive_index import INDEX_PATH, read_index
 
 
 SAMSUNG_SEARCH = 'https://opensource.samsung.com/uploadSearch'
@@ -35,6 +36,7 @@ MODEL_RE = re.compile(r'SM-[A-Z0-9]{3,16}')
 ARCHIVE_HINTS = Path(__file__).resolve().parents[1] / 'data/archive-source-hints.json'
 ARCHIVE_SCAN_SECONDS = 600
 ARCHIVE_SCAN_WORKERS = 16
+ARCHIVE_ITEM_PAGE_SIZE = 1000
 
 
 def firmware_in_name(firmware: str, name: str) -> bool:
@@ -138,19 +140,38 @@ class Client:
         return data
 
     def archive_items(self) -> list[str]:
-        """Archive search indexes item metadata, not ZIP filenames/builds."""
-        url = ARCHIVE + '/advancedsearch.php?' + urllib.parse.urlencode({
-            'q': 'collection:samsung-opensource', 'fl[]': 'identifier',
-            'rows': 10000, 'output': 'json', 'sort[]': 'identifier asc',
-        })
-        data = json.loads(self.read(url))
-        response = data.get('response', {})
-        docs = response.get('docs', [])
-        if 'numFound' not in response or response['numFound'] != len(docs):
-            raise ValueError('Archive.org 条目列表不完整，无法确认完整固件版本。')
-        return sorted({doc['identifier'] for doc in docs
-                       if re.fullmatch(r'samsung-opensource-\d+', doc.get('identifier', ''))},
-                      key=lambda item: int(item.rsplit('-', 1)[-1]), reverse=True)
+        """Page through all collection item metadata identifiers."""
+        page_size, page, total, fetched, identifiers = ARCHIVE_ITEM_PAGE_SIZE, 1, None, 0, []
+        while total is None or fetched < total:
+            url = ARCHIVE + '/advancedsearch.php?' + urllib.parse.urlencode({
+                'q': 'collection:samsung-opensource', 'fl[]': 'identifier',
+                'rows': page_size, 'page': page, 'output': 'json', 'sort[]': 'identifier asc',
+            })
+            data = json.loads(self.read(url))
+            response = data.get('response', {})
+            docs = response.get('docs', [])
+            found = response.get('numFound')
+            if not isinstance(found, int) or not isinstance(docs, list):
+                raise ValueError('Archive.org 条目列表响应无效。')
+            if total is None:
+                total = found
+            elif found != total:
+                raise ValueError('Archive.org 条目列表在分页期间发生变化，无法确认完整固件版本。')
+            expected = min(page_size, total - fetched)
+            if len(docs) != expected:
+                raise ValueError('Archive.org 条目列表不完整，无法确认完整固件版本。')
+            fetched += len(docs)
+            for doc in docs:
+                identifier = doc.get('identifier') if isinstance(doc, dict) else None
+                if identifier == 'samsung-opensource-':
+                    continue
+                if not isinstance(identifier, str) or not re.fullmatch(r'samsung-opensource-\d+', identifier):
+                    raise ValueError('Archive.org 返回了无效的三星源码归档编号。')
+                identifiers.append(identifier)
+            page += 1
+        if len(set(identifiers)) != len(identifiers):
+            raise ValueError('Archive.org 条目列表含重复归档编号。')
+        return sorted(identifiers, key=lambda item: int(item.rsplit('-', 1)[-1]), reverse=True)
 
     def archive_files(self, item: str) -> list[dict]:
         data = json.loads(self.read(f'{ARCHIVE}/metadata/{item}/files'))
@@ -186,6 +207,16 @@ def archive_hint_items(model: str) -> list[str]:
     data = json.loads(ARCHIVE_HINTS.read_text(encoding='utf-8'))
     return list(dict.fromkeys(normalize_item(entry['archive_item']) for entry in data['items']
                               if model in entry['models']))
+
+
+def cached_archive_items(model: str, firmware: str) -> tuple[list[str], dict]:
+    """Return cached Archive.org items whose indexed ZIP names match the build."""
+    index = read_index(INDEX_PATH)
+    matches = []
+    for entry in index['items']:
+        if model in entry['models'] and firmware in entry['firmware_versions']:
+            matches.append(entry['archive_item'])
+    return matches, index
 
 
 def discover_archive_items(client: Client, firmware: str, report: dict,
@@ -340,12 +371,46 @@ def resolve(client: Client, model: str, firmware: str, item: str, report: dict) 
         items = [normalize_item(item)]
         report['discovery'] = {'method': 'explicit_archive_item'}
     else:
+        cache_error = None
+        try:
+            cached_items, index = cached_archive_items(model, firmware)
+            if cached_items:
+                cached_metadata = {
+                    entry['archive_item']: {'metadata': {'identifier': entry['archive_item']},
+                                            'files': entry['files']}
+                    for entry in index['items'] if entry['archive_item'] in cached_items
+                }
+                cached_candidates, cached_errors = [], []
+                for item_id in cached_items:
+                    try:
+                        cached_candidates.append(select_packages(
+                            model, firmware, cached_metadata[item_id], None,
+                            lambda f: read_dependencies(client, item_id, f)))
+                    except (KeyError, ValueError, RuntimeError, zipfile.BadZipFile) as error:
+                        cached_errors.append({'archive_item': item_id, 'error': str(error)})
+                if len(cached_candidates) == 1 and not cached_errors:
+                    report['discovery'] = {'method': 'local_archive_index',
+                                           'index_generated_at': index['generated_at'],
+                                           'index_item_count': index['item_count']}
+                    return cached_candidates[0]
+                cache_error = ('本地索引候选无法唯一解析。' if not cached_errors else
+                               '本地索引候选校验失败：' + '; '.join(e['error'] for e in cached_errors))
+                report['index_candidates'] = cached_candidates
+                report['index_candidate_errors'] = cached_errors
+            else:
+                cache_error = '本地索引没有匹配的完整固件版本。'
+        except (ValueError, OSError, json.JSONDecodeError) as error:
+            cache_error = str(error)
+
+        print('本地 Archive.org 索引没有可用匹配，改用在线查询。', flush=True)
         try:
             rows, errors = discover_rows(client, model, firmware)
             items = ['samsung-opensource-' + row['upload_id'] for row in rows]
-            report['discovery'] = {'method': 'samsung_search', 'rows': rows, 'request_errors': errors}
+            report['discovery'] = {'method': 'samsung_search', 'rows': rows,
+                                   'request_errors': errors, 'cache_error': cache_error}
         except (ValueError, RuntimeError) as error:
             report['discovery'] = {'method': 'archive_fallback', 'samsung_error': str(error),
+                                   'cache_error': cache_error,
                                    'hint_items': archive_hint_items(model), 'hint_errors': []}
             print('三星型号／版本查询失败，改用 Archive.org 自动查找。', flush=True)
             checked, items = set(), []
@@ -408,7 +473,9 @@ def summary(report: dict) -> str:
         if result['base_versions']:
             lines += ['README 要求的基础源码版本：' + ', '.join(f'`{v}`' for v in result['base_versions']) + '。', '']
         discovery = report['discovery']
-        if discovery.get('method') == 'archive_fallback':
+        if discovery.get('method') == 'local_archive_index':
+            lines += [f"优先使用仓库本地 Archive.org 索引（生成于 {markdown(discovery['index_generated_at'])}）。", '']
+        elif discovery.get('method') == 'archive_fallback':
             lines += ['三星搜索不可用，已自动通过 Archive.org 文件清单与 README 完成匹配。', '']
         for row in discovery.get('rows', []):
             lines += [f"三星索引：[型号／版本查询]({row['search_url']})，upload ID `{row['upload_id']}`。", '']
