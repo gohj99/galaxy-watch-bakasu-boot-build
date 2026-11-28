@@ -1,8 +1,40 @@
 {
   "schema_version": 2,
-  "generated_at": "2026-11-27T10:21:52+00:00",
-  "item_count": 5061,
+  "generated_at": "2026-11-28T10:39:42+00:00",
+  "item_count": 5065,
   "items": [
+    {
+      "archive_item": "samsung-opensource-14373",
+      "models": [
+        "SM-F761B"
+      ],
+      "firmware_versions": [],
+      "files": [
+        {
+          "name": "SM-F761B_17_Opensource.zip",
+          "size": 411881757,
+          "sha1": "4dc3b78f569e42369d49597df55145c40e19b15a",
+          "md5": "dbcae7d79e21d2354f5c9b902270297b",
+          "source": "original"
+        }
+      ]
+    },
+    {
+      "archive_item": "samsung-opensource-14372",
+      "models": [
+        "SM-F766B"
+      ],
+      "firmware_versions": [],
+      "files": [
+        {
+          "name": "SM-F766B_17_Opensource.zip",
+          "size": 379670395,
+          "sha1": "3dff172bf2a666359163971adc8188081defd7ae",
+          "md5": "fa86d35ad665405ebabea97572982d7e",
+          "source": "original"
+        }
+      ]
+    },
     {
       "archive_item": "samsung-opensource-14370",
       "models": [],
@@ -351,15 +383,64 @@
     {
       "archive_item": "samsung-opensource-14357",
       "models": [
-        "SM-A566B"
+        "SM-A5660",
+        "SM-A566B",
+        "SM-A566E",
+        "SM-A566S",
+        "SM-A566U1",
+        "SM-A566W"
       ],
-      "firmware_versions": [],
+      "firmware_versions": [
+        "A566EXXUEZZI8"
+      ],
       "files": [
+        {
+          "name": "SM-A5660_CHN_17_Opensource_dts.zip",
+          "size": 1061578,
+          "sha1": "48cf6be23a689918cd3636d3a1a293c33f5d1ee2",
+          "md5": "f5e8a567930f296f044f11c1ee566985",
+          "source": "original"
+        },
         {
           "name": "SM-A566B_17_Opensource.zip",
           "size": 358338999,
           "sha1": "9841807e6a410966f7a07fca99a2ac58ea1646e4",
           "md5": "97c8c4accf5643748f1b1a134c0dff2d",
+          "source": "original"
+        },
+        {
+          "name": "SM-A566E_17_Opensource_dts.zip",
+          "size": 1050822,
+          "sha1": "a7aa707abc6a1ed6c2d0c9043b378e014b5045ff",
+          "md5": "312668637b1f3821041dc21567dc848b",
+          "source": "original"
+        },
+        {
+          "name": "SM-A566E_SWA_17_Opensource_A566EXXUEZZI8.zip",
+          "size": 1066685,
+          "sha1": "e257035561f5f6897cc493076a8319361cae911d",
+          "md5": "2599ab8032f64abbb0567ba33533920c",
+          "source": "original"
+        },
+        {
+          "name": "SM-A566S_KOR_17_Opensource_dts.zip",
+          "size": 1062977,
+          "sha1": "dd15327f73f2a95e9315e012e8a4f61422c0f865",
+          "md5": "2ff96c5ab526d6226597639805f5a775",
+          "source": "original"
+        },
+        {
+          "name": "SM-A566U1_NA_17_Opensource_dts.zip",
+          "size": 1034486,
+          "sha1": "12959ae245e9cddb54530feb335a4827970cca4a",
+          "md5": "6dd7876c8283907ed3c576118e872898",
+          "source": "original"
+        },
+        {
+          "name": "SM-A566W_NA_17_Opensource_dts.zip",
+          "size": 1026214,
+          "sha1": "47ab5c7c31077dcfc3610981fb6949b5da3a831b",
+          "md5": "8dfc5dd89f2a188c6e3bd1189e38a9bc",
           "source": "original"
         }
       ]
@@ -925,15 +1006,21 @@
       ],
       "firmware_versions": [
         "S9280ZHS6EZJ1",
+        "S9280ZHS6EZK1",
         "S9280ZHU6EZJD",
         "S928BXXS6EZJ1",
+        "S928BXXS6EZK1",
         "S928BXXU6EZJB",
         "S928NKSS6EZJ1",
+        "S928NKSS6EZK1",
         "S928NKSU6EZJB",
+        "S928QOPU1EZK4",
         "S928U1UES6EZJ1",
         "S928U1UEU6EZJD",
         "S928USQS6EZJ1",
-        "S928USQU6EZJD"
+        "S928USQS6EZK1",
+        "S928USQU6EZJD",
+        "SC52EOMU1EZJC"
       ],
       "files": [
         {
@@ -951,10 +1038,24 @@
           "source": "original"
         },
         {
-          "name": "SM-S928B_17_Opensource_S928BXXS6EZJ1_S9280ZHS6EZJ1_S928NKSS6EZJ1_S928U1UES6EZJ1_S928USQS6EZJ1_S928BXXU6EZJB_S928NKSU6EZJB_S9280ZHU6EZJD_S928U1UEU6EZJD_S928USQU6EZJD.zip",
+          "name": "SM-S928B_17_Opensource_S928BXXS6EZJ1_S9280ZHS6EZJ1_S928NKSS6EZJ1_S928U1UES6EZJ1_S928USQS6EZJ1_S928BXXU6EZJB.zip",
           "size": 387601,
           "sha1": "6990750428f8f82fccafb7d05e5ab43b472625ed",
           "md5": "9a87a41fcbf19d064565ee4366aeb701",
+          "source": "original"
+        },
+        {
+          "name": "SM-S928B_17_Opensource_S928BXXS6EZK1_S9280ZHS6EZK1_S928NKSS6EZK1_S928USQS6EZK1.zip",
+          "size": 762155,
+          "sha1": "a439ed5728100f49e450dea575aba97c0fa9020c",
+          "md5": "86b55bd6bdb5deee5d2a58860b313d11",
+          "source": "original"
+        },
+        {
+          "name": "SM-S928B_17_Opensource_S928NKSU6EZJB_SC52EOMU1EZJC_S9280ZHU6EZJD_S928U1UEU6EZJD_S928USQU6EZJD_S928QOPU1EZK4.zip",
+          "size": 387972,
+          "sha1": "51aa61f7631a8bce5cec0d4d6e24d876de745e04",
+          "md5": "80c106179b087a325935e6189d0b0f05",
           "source": "original"
         },
         {
@@ -1611,14 +1712,19 @@
     {
       "archive_item": "samsung-opensource-14330",
       "models": [
+        "SM-S7110",
         "SM-S711J",
         "SM-S711U",
         "SM-S711U1",
         "SM-S711W"
       ],
       "firmware_versions": [
+        "S7110ZHS8GZH6",
+        "S7110ZHS8GZI3",
+        "S7110ZHS8GZJ7",
         "S711U1UES8FZH6",
         "S711U1UES8FZI5",
+        "S711U1UES8FZJ7",
         "S711USQS8FZH6",
         "S711USQS8FZI5",
         "S711USQS8FZJ7",
@@ -1627,6 +1733,13 @@
         "SCG24KDS1DZH6"
       ],
       "files": [
+        {
+          "name": "SM-S7110_CHN_16_Opensource_dts.zip",
+          "size": 479705,
+          "sha1": "d32f87b37059890043e48f493cd07ef875023391",
+          "md5": "d334f84f7d836d841ce0036180ecdded",
+          "source": "original"
+        },
         {
           "name": "SM-S711J_JPN_16_Opensource_dts.zip",
           "size": 479395,
@@ -1649,21 +1762,21 @@
           "source": "original"
         },
         {
-          "name": "SM-S711U_16_Opensource_S711USQS8FZH6_S711U1UES8FZH6_SCG24KDS1DZH6.zip",
+          "name": "SM-S711U_16_Opensource_S711USQS8FZH6_S711U1UES8FZH6_S7110ZHS8GZH6_SCG24KDS1DZH6.zip",
           "size": 16174,
           "sha1": "35a49ccbb167301fa7c0ad8424b629e9c538788c",
           "md5": "387e1279cde445cdd4e37dbc712bdf70",
           "source": "original"
         },
         {
-          "name": "SM-S711U_16_Opensource_S711USQS8FZI5_S711U1UES8FZI5_S711WVLS8FZI5.zip",
+          "name": "SM-S711U_16_Opensource_S711USQS8FZI5_S7110ZHS8GZI3_S711U1UES8FZI5_S711WVLS8FZI5.zip",
           "size": 249480,
           "sha1": "be71f6dbf8291483c73491f05d498b433b9e1903",
           "md5": "e2251a5c7149fab97fef07bd0b123861",
           "source": "original"
         },
         {
-          "name": "SM-S711U_16_Opensource_S711USQS8FZJ7_S711WVLS8FZJ5.zip",
+          "name": "SM-S711U_16_Opensource_S711USQS8FZJ7_S711WVLS8FZJ5_S7110ZHS8GZJ7_S711U1UES8FZJ7.zip",
           "size": 327985,
           "sha1": "8c23e27750a9bf928466825d6cb86dd672661696",
           "md5": "13cdf51c94aec0f8900756c033fa925b",
@@ -11907,15 +12020,34 @@
     {
       "archive_item": "samsung-opensource-14102",
       "models": [
-        "SM-A155F"
+        "SM-A155F",
+        "SM-A155N"
       ],
-      "firmware_versions": [],
+      "firmware_versions": [
+        "A155FXXSCEZH3",
+        "A155MUBSCEZH3",
+        "A155NKSSBDZH6"
+      ],
       "files": [
         {
           "name": "SM-A155F_16_Opensource.zip",
           "size": 358716740,
           "sha1": "5e6b196036625b6000724fefc4d0f248779b03fa",
           "md5": "ef064e19500ee1e4d1cbec74a6d9f7de",
+          "source": "original"
+        },
+        {
+          "name": "SM-A155F_16_Opensource_A155FXXSCEZH3_A155MUBSCEZH3_A155NKSSBDZH6.zip",
+          "size": 14784,
+          "sha1": "bc4661035e68903ca1e81f5361a8b83df4b0c4e3",
+          "md5": "bfb268f7a56a0f9b147af6c5f1f24977",
+          "source": "original"
+        },
+        {
+          "name": "SM-A155N_KOR_16_Opensource_dts.zip",
+          "size": 188969,
+          "sha1": "f3f6f40ce7111866265eb31ae2ea7778b8caeb71",
+          "md5": "11056757c5d602dc57ebb1fe0995d2b2",
           "source": "original"
         }
       ]
@@ -17469,7 +17601,8 @@
         "S711NKSSGEZG1",
         "S711NKSSHEZH2",
         "S711NKSSIEZI2",
-        "S711NKSSIEZJ2"
+        "S711NKSSIEZJ2",
+        "S711NKSSJEZK3"
       ],
       "files": [
         {
@@ -17512,6 +17645,13 @@
           "size": 323407,
           "sha1": "1d2d110a69d1ebaaa2c18e0aa974a2630b51f927",
           "md5": "58b97af55e2aeba58286b270d74495ee",
+          "source": "original"
+        },
+        {
+          "name": "SM-S711N_16_Opensource_S711NKSSJEZK3.zip",
+          "size": 387159,
+          "sha1": "80bfb0dde1e8e007e157d9e4d0b4dfab3f323c12",
+          "md5": "c5f257f1502defe5e88be8407886e619",
           "source": "original"
         }
       ]
@@ -45255,7 +45395,15 @@
       "archive_item": "samsung-opensource-13218",
       "models": [],
       "firmware_versions": [],
-      "files": []
+      "files": [
+        {
+          "name": "25_SmartMonitor_PontusM.zip",
+          "size": 841703977,
+          "sha1": "f33666db017ab473556334ce8d7c792777e8f7f2",
+          "md5": "107887d6f3be4f2cf7761eddffd9d658",
+          "source": "original"
+        }
+      ]
     },
     {
       "archive_item": "samsung-opensource-13217",
@@ -86200,15 +86348,25 @@
     {
       "archive_item": "samsung-opensource-11754",
       "models": [
-        "SM-A127F"
+        "SM-A127F",
+        "SM-A127M"
       ],
-      "firmware_versions": [],
+      "firmware_versions": [
+        "A127MUBS9DWE1"
+      ],
       "files": [
         {
-          "name": "SM-A127F_CIS_13_Opensource.zip",
+          "name": "SM-A127F_13_Opensource.zip",
           "size": 242020895,
           "sha1": "86d6539e1dafe0dcc0946ba1b73fdbcb97f6fca2",
           "md5": "f310a5611e51f7bc8c03e21b31c411c7",
+          "source": "original"
+        },
+        {
+          "name": "SM-A127M_13_Opensource_A127MUBS9DWE1.zip",
+          "size": 175786,
+          "sha1": "bec1d9686bdf3ddec2bc459e4397957a4d5696d1",
+          "md5": "9753a965f3af3503e3cc030f8b102bb0",
           "source": "original"
         }
       ]
@@ -94666,7 +94824,7 @@
       "firmware_versions": [],
       "files": [
         {
-          "name": "SM-A127F_CIS_13_Opensource.zip",
+          "name": "SM-A127F_13_Opensource.zip",
           "size": 247834631,
           "sha1": "ee918bf9b4b51da1c4024e7676b5fc50dbca1e94",
           "md5": "0dae4aa32f6809258d8b2d9ae0d8e901",
@@ -97029,13 +97187,22 @@
       "models": [
         "SM-G781B"
       ],
-      "firmware_versions": [],
+      "firmware_versions": [
+        "G781BXXS4FVK3"
+      ],
       "files": [
         {
-          "name": "SM-G781B_EUR_12_Opensource.zip",
+          "name": "SM-G781B_12_Opensource.zip",
           "size": 247967455,
           "sha1": "ee15184d9d5a5da1773f1b7ac6dae988d5d5da03",
           "md5": "df8463d20703df67b8a077a07c6a1112",
+          "source": "original"
+        },
+        {
+          "name": "SM-G781B_LA_12_Opensource_G781BXXS4FVK3.zip",
+          "size": 207980,
+          "sha1": "eddee4dc5c4666f7f6ef3d2c45aeb7d2f0395763",
+          "md5": "dc0612b571a1b14d04937d0b30941c0c",
           "source": "original"
         }
       ]
@@ -125165,6 +125332,22 @@
       ]
     },
     {
+      "archive_item": "samsung-opensource-6725",
+      "models": [
+        "SM-N916S"
+      ],
+      "firmware_versions": [],
+      "files": [
+        {
+          "name": "SM-N916S_KOR_MM_Opensource.zip",
+          "size": 150979195,
+          "sha1": "71930f11a9e3667e28c4983c8a6dd53ac37e480e",
+          "md5": "55fef609b62577cd1dc19d08fa39f260",
+          "source": "original"
+        }
+      ]
+    },
+    {
       "archive_item": "samsung-opensource-6722",
       "models": [
         "SM-G710K"
@@ -127251,6 +127434,12 @@
           "source": "original"
         }
       ]
+    },
+    {
+      "archive_item": "samsung-opensource-4401",
+      "models": [],
+      "firmware_versions": [],
+      "files": []
     },
     {
       "archive_item": "samsung-opensource-4350",
